@@ -29,3 +29,40 @@ export function withNegative(rows: Rate[]): Rate[] {
     return row;
   });
 }
+
+export type Route = {
+  /** Substring the request URL must contain. */
+  match: string;
+  status?: number;
+  body: unknown;
+  /** How many times the route may be hit. Defaults to 1. */
+  times?: number;
+};
+
+/**
+ * A stand-in for fetch that answers by URL substring. Each route is consumed
+ * `times` times; an unmatched request throws so a test cannot silently reach
+ * the real network.
+ */
+export function stubFetch(routes: Route[]) {
+  const remaining = routes.map((route) => route.times ?? 1);
+  const calls: string[] = [];
+  const fetcher: typeof fetch = async (input) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    calls.push(url);
+    const index = routes.findIndex((route, i) => remaining[i] > 0 && url.includes(route.match));
+    if (index < 0) throw new Error(`Unexpected fetch: ${url}`);
+    remaining[index] -= 1;
+    const route = routes[index];
+    const body = typeof route.body === "string" ? route.body : JSON.stringify(route.body);
+    return new Response(body, { status: route.status ?? 200, headers: { "content-type": "application/json" } });
+  };
+  return {
+    fetcher,
+    calls,
+    assertAllUsed() {
+      const unused = routes.filter((_, i) => remaining[i] > 0).map((route) => route.match);
+      if (unused.length > 0) throw new Error(`Routes never called: ${unused.join(", ")}`);
+    },
+  };
+}
