@@ -36,10 +36,25 @@
 </style>
 
 <div class="layout layout--col gap--xsmall">
-{%- if ok == false -%}
-  <div class="flex flex--col flex--center gap--small">
-    <span class="value value--xlarge">Prices unavailable</span>
+{%- if ok != true -%}
+  {%- comment -%} Setup or error screen. `ok` is nil when TRMNL has no data yet. {%- endcomment -%}
+  <div class="flex flex--col flex--center gap--medium w--full">
+    {%- if setup -%}
+    <span class="title title--large">Set up Agile Octopus prices</span>
     <span class="label">{{ error }}</span>
+    <div class="flex flex--col flex--left gap--small">
+      <span class="label label--small">1. Open this plugin's settings on trmnl.com.</span>
+      <span class="label label--small">2. Choose your electricity region: the last letter of your Agile tariff code (E-1R-AGILE-24-10-01-C is region C), or look it up by postcode at api.octopus.energy/v1/industry/grid-supply-points/?postcode=YOURPOSTCODE.</span>
+      <span class="label label--small">3. Optionally name two appliances and their run times, then save. The screen updates at the next refresh.</span>
+    </div>
+    {%- elsif error -%}
+    <span class="title title--large">Prices unavailable</span>
+    <span class="label">{{ error }}</span>
+    <span class="label label--small">The Octopus Energy API did not answer. The plugin will try again at the next refresh.</span>
+    {%- else -%}
+    <span class="title title--large">Waiting for prices</span>
+    <span class="label label--small">No data has been fetched yet. Check the plugin settings and polling URL.</span>
+    {%- endif -%}
   </div>
 {%- else -%}
 
@@ -195,5 +210,5 @@
 
 <div class="title_bar">
   <span class="title">Agile Octopus prices</span>
-  <span class="instance">{{ region.name }} · slot {{ slot_label }}</span>
+  <span class="instance">{% if ok == true %}{{ region.name }} · slot {{ slot_label }}{% else %}setup needed{% endif %}</span>
 </div>

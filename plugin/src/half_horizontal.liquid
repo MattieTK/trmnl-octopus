@@ -3,8 +3,11 @@
 {%- assign name_2 = fields.appliance_2 | default: "Appliance 2" -%}
 {%- assign appliance_names = name_1 | append: "|" | append: name_2 | split: "|" -%}
 <div class="layout layout--col gap--small">
-{%- if ok == false -%}
-  <span class="value value--large">Prices unavailable</span>
+{%- if ok != true -%}
+  <div class="flex flex--col flex--center gap--small w--full">
+    <span class="title">{% if setup %}Set up Agile Octopus prices{% else %}Prices unavailable{% endif %}</span>
+    <span class="label label--small">{% if setup %}Choose your electricity region in the plugin settings on trmnl.com.{% else %}{{ error | default: "No data fetched yet" }}{% endif %}</span>
+  </div>
 {%- else -%}
   <div class="grid grid--cols-4 gap--medium">
     <div class="flex flex--col flex--left">
@@ -39,5 +42,5 @@
 
 <div class="title_bar">
   <span class="title">Agile Octopus prices</span>
-  <span class="instance">{{ region.name }} · slot {{ slot_label }}</span>
+  <span class="instance">{% if ok == true %}{{ region.name }} · slot {{ slot_label }}{% else %}setup needed{% endif %}</span>
 </div>

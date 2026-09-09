@@ -22,17 +22,31 @@ async function get(app: ReturnType<typeof createApp>, path: string) {
 describe("GET /trmnl validation", () => {
   const app = createApp({ now: () => MORNING, fetcher: stubFetch([]).fetcher });
 
-  it("rejects a missing or unknown region", async () => {
-    const missing = await get(app, "/trmnl");
-    expect(missing.status).toBe(400);
-    expect(await missing.json()).toMatchObject({ ok: false });
-    const unknown = await get(app, "/trmnl?region=I");
-    expect(unknown.status).toBe(400);
+  it("answers a missing or empty region with a 200 setup payload so TRMNL is not degraded", async () => {
+    for (const path of ["/trmnl", "/trmnl?region=", "/trmnl?region=%20"]) {
+      const response = await get(app, path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      const body = (await response.json()) as { ok: boolean; setup: boolean; error: string };
+      expect(body.ok).toBe(false);
+      expect(body.setup).toBe(true);
+      expect(body.error).toContain("region");
+    }
   });
 
-  it("rejects bad durations and bad at", async () => {
-    expect((await get(app, "/trmnl?region=C&durations=99")).status).toBe(400);
-    expect((await get(app, "/trmnl?region=C&at=soon")).status).toBe(400);
+  it("treats an unknown region and bad durations as setup problems", async () => {
+    const unknown = await get(app, "/trmnl?region=I");
+    expect(unknown.status).toBe(200);
+    expect(await unknown.json()).toMatchObject({ ok: false, setup: true });
+    const durations = await get(app, "/trmnl?region=C&durations=99");
+    expect(durations.status).toBe(200);
+    expect(await durations.json()).toMatchObject({ ok: false, setup: true });
+  });
+
+  it("still rejects a bad at parameter", async () => {
+    const response = await get(app, "/trmnl?region=C&at=soon");
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false });
   });
 });
 

@@ -17,9 +17,11 @@ export type AppOptions = {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-function errorBody(error: string): ErrorPayload {
-  return { ok: false, error };
+function errorBody(error: string, setup = false): ErrorPayload {
+  return { ok: false, setup, error };
 }
+
+const NO_STORE = { "Cache-Control": "no-store" };
 
 export function createApp(options: AppOptions = {}) {
   const clock = options.now ?? (() => new Date());
@@ -31,13 +33,24 @@ export function createApp(options: AppOptions = {}) {
   app.get("/health", (c) => c.json({ ok: true }));
 
   app.get("/trmnl", async (c) => {
+    // Configuration problems answer 200: TRMNL marks a polling plugin as
+    // degraded on any non-2xx response, and a freshly installed plugin polls
+    // before the user has chosen a region.
     const region = parseRegion(c.req.query("region"));
     if (!region) {
-      return c.json(errorBody(`region must be one of ${REGION_CODES.join(", ")}`), 400);
+      return c.json(
+        errorBody(`Choose your electricity region in the plugin settings (one of ${REGION_CODES.join(", ")})`, true),
+        200,
+        NO_STORE,
+      );
     }
     const durations = parseDurations(c.req.query("durations"));
     if (!durations) {
-      return c.json(errorBody("durations must be up to four comma-separated hours between 0.5 and 12 in half-hour steps"), 400);
+      return c.json(
+        errorBody("Appliance run times must be between 0.5 and 12 hours in half-hour steps", true),
+        200,
+        NO_STORE,
+      );
     }
     const at = parseAt(c.req.query("at"));
     if (at === null) {
@@ -77,9 +90,9 @@ export function createApp(options: AppOptions = {}) {
       const lastGood = await cache.match(lastGoodKey(region, durations));
       if (lastGood) {
         const stale: Payload = { ...((await lastGood.json()) as Payload), stale: true };
-        return c.json(stale, 200, { "Cache-Control": "no-store" });
+        return c.json(stale, 200, NO_STORE);
       }
-      return c.json(errorBody("Octopus Energy prices are unavailable at the moment"), 502, { "Cache-Control": "no-store" });
+      return c.json(errorBody("Octopus Energy prices are unavailable at the moment"), 502, NO_STORE);
     }
 
     const ttl = ttlSeconds(now, payload.window.tomorrow_pending);

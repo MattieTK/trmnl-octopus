@@ -1,8 +1,11 @@
 {%- assign fields = trmnl.plugin_settings.custom_fields_values -%}
 {%- assign name_1 = fields.appliance_1 | default: "Appliance 1" -%}
 <div class="layout layout--col gap--small">
-{%- if ok == false -%}
-  <span class="value value--large">Prices unavailable</span>
+{%- if ok != true -%}
+  <div class="flex flex--col flex--center gap--small w--full">
+    <span class="title">{% if setup %}Set up Agile Octopus prices{% else %}Prices unavailable{% endif %}</span>
+    <span class="label label--small">{% if setup %}Choose your electricity region in the plugin settings on trmnl.com.{% else %}{{ error | default: "No data fetched yet" }}{% endif %}</span>
+  </div>
 {%- else -%}
   <div class="flex flex--col flex--left">
     <span class="label label--small">Now · {{ now.time }}</span>
@@ -18,5 +21,5 @@
 
 <div class="title_bar">
   <span class="title">Agile Octopus</span>
-  <span class="instance">{{ region.name }}</span>
+  <span class="instance">{% if ok == true %}{{ region.name }}{% else %}setup needed{% endif %}</span>
 </div>

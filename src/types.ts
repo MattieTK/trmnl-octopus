@@ -80,4 +80,9 @@ export type Payload = {
   slot_label: string;
 };
 
-export type ErrorPayload = { ok: false; error: string };
+/**
+ * Returned with HTTP 200 for configuration problems, so TRMNL merges the
+ * variables and the template can show a setup screen instead of marking the
+ * plugin degraded. `setup` is true when the user needs to change settings.
+ */
+export type ErrorPayload = { ok: false; setup: boolean; error: string };
