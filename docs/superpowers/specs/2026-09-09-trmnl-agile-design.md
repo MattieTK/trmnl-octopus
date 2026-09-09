@@ -1,7 +1,7 @@
 # TRMNL Octopus Agile – design
 
 Date: 2026-09-09
-Status: approved in discussion, awaiting spec review
+Status: approved
 
 ## Summary
 
@@ -134,7 +134,7 @@ fields. Local times are Europe/London, 24-hour `HH:MM`. Day labels are
   "ok": true,
   "stale": false,
   "region": { "code": "C", "name": "London" },
-  "reference": { "price": 26.4, "label": "Flexible Octopus" },
+  "reference": { "price": 26.3, "label": "Flexible Octopus", "short": "Flexible" },
   "now":  { "time": "09:00", "end": "09:30", "price": 12.8, "vs_reference_pct": -51, "band": "below" },
   "next": { "time": "09:30", "end": "10:00", "price": 18.4, "vs_reference_pct": -30, "band": "below", "delta": 5.6 },
   "window": {
@@ -156,7 +156,8 @@ fields. Local times are Europe/London, 24-hour `HH:MM`. Day labels are
     "reference_y": 56,
     "zero_y": 100,
     "ticks": [ { "index": 0, "label": "09:00" }, { "index": 6, "label": "12:00" } ],
-    "tomorrow_index": 28
+    "tomorrow_index": 28,
+    "tomorrow_label": "Wed"
   },
   "slots": [
     { "time": "09:00", "price": 12.8, "band": "below", "y": 78.7, "h": 21.3 }
@@ -191,13 +192,20 @@ Field notes:
   price plus 5, rounded up to the nearest 10.
 - `reference_y` and `zero_y` are percentages of chart height.
 - `ticks` fall on every slot whose local time is on a three-hour boundary
-  (00, 03, 06, ...). The first slot always gets a tick.
+  (00, 03, 06, ...). The first slot always gets a tick; boundary ticks within
+  the first three slots are dropped so labels do not collide.
 - `tomorrow_index` is the index of the first slot on tomorrow's London date, or
-  `null` when the window does not reach midnight.
+  `null` when the window does not reach midnight. `tomorrow_label` is that
+  slot's short weekday name, or `null`.
+- `reference.short` is the word used in comparisons ("Flexible", or "typical"
+  when the fallback table is in use).
+- `next` is `null` when the current slot is the last published one.
 - `slot_label` is the current slot's start time; it is the only "updated at"
   indicator, so the payload does not change between polls within one slot.
-- `windows` preserves the order of `durations`. When fewer slots remain than
-  the duration needs, the entry is `{ "hours": 2, "available": false }`.
+- `windows` preserves the order of `durations`, duplicates included, because
+  the template pairs each entry with an appliance name by position. When fewer
+  slots remain than the duration needs, the entry is
+  `{ "hours": 2, "available": false }`.
 - On error: `{ "ok": false, "error": "human-readable message" }` with HTTP 400
   for bad input, 502 for upstream failure with no last-good copy.
 
@@ -215,16 +223,16 @@ Payload size: 96 slots at roughly 60 bytes each plus the fixed fields is about
 - **Stats** are over the same slot list as the chart. `below_reference_pct`
   is the share of slots with `band` not `above`, rounded to an integer.
 - **`vs_reference_pct`** is `round((price - reference) / reference * 100)`.
-- **`window.until`**: `"23:00 tonight"` when the last slot ends today
-  (London date), otherwise `"HH:MM tomorrow"` using the last slot's end time.
+- **`window.until`**: `"HH:MM today"` when the last slot ends today
+  (London date), otherwise `"HH:MM tomorrow"`, using the last slot's end time.
 - **`tomorrow_pending`**: true when London time is at or after 16:00 and the
   last slot ends before 23:00 tomorrow.
 
 ### Caching
 
-- Key: the request URL with `region` upper-cased and `durations` normalised
-  (sorted, deduplicated), plus a period bucket header so entries roll over at
-  the half-hour boundary, as the LaMetric Worker does.
+- Key: a synthetic URL containing the upper-cased `region`, the `durations`
+  list as given, and the half-hour period number, so entries roll over at the
+  boundary without a vary header.
 - TTL: until the next half-hour boundary, except that when `tomorrow_pending`
   is true the TTL is the lesser of that and five minutes, so tomorrow's prices
   arrive on the device soon after publication.
@@ -242,7 +250,7 @@ Payload size: 96 slots at roughly 60 bytes each plus the fixed fields is about
 | Missing or invalid `region` | 400, `ok: false`, message lists valid letters |
 | Invalid `durations` | 400, `ok: false` |
 | Octopus non-2xx, timeout, or malformed JSON | serve last-good with `stale: true`, else 502 `ok: false` |
-| Flexible rate missing | proceed with a fallback reference from a hard-coded per-region table updated each quarter, and `reference.label` = "Typical variable" |
+| Flexible rate missing | proceed with a fallback reference from a hard-coded per-region table updated each quarter, `reference.label` = "Typical variable", `reference.short` = "typical" |
 | No current slot in Agile response | treated as upstream failure |
 | Fewer slots than a window needs | that window reports `available: false` |
 
@@ -254,7 +262,10 @@ the style of the LaMetric Worker.
 ### `settings.yml`
 
 - `strategy: polling`, `polling_verb: GET`, `refresh_interval: 15`.
-- `polling_url`: `https://<worker>/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}`
+- `polling_url`: `{{ api_base | default: 'https://<worker>' }}/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}{{ dev_query }}`.
+  `api_base` and `dev_query` are not form fields; on TRMNL they render empty
+  so the production host applies. The local preview config sets them to reach
+  the local Worker and pin a preview time.
 - `custom_fields`:
   - `region` – `select`, required, options in `Label:Value` form for the 14
     regions, e.g. `London (C):C`, `Eastern England (A):A`. Help text links to
@@ -263,24 +274,23 @@ the style of the LaMetric Worker.
   - `appliance_1_hours` – `number`, default `2`, min 0.5, max 12, step 0.5.
   - `appliance_2` – `string`, default `Dishwasher`.
   - `appliance_2_hours` – `number`, default `3`, same bounds.
-- `name`, `description` (35 characters max), `no_screen_padding: false`,
-  `framework_version` pinned to the current 3.x release.
+- `name`, `description` (35 characters max), `no_screen_padding: "no"`,
+  `framework_version: latest` for now, to be pinned once the layout settles.
 
 ### `full.liquid`
 
 Structure, top to bottom, inside `screen > view view--full`:
 
-1. **Title bar**: "Agile prices · {{ region.name }}" on the left; date and
-   the current slot time on the right, computed in Liquid from
-   `trmnl.user.utc_offset` rather than from the payload so it follows the
-   user's locale for the date.
+1. **Title bar**: the framework `title_bar` (rendered at the bottom of the
+   screen by the framework) with title "Agile Octopus prices" and instance
+   "{{ region.name }} · slot {{ slot_label }}".
 2. **Stats row** of five tiles (four on the original device, the Flexible tile
    is `md:hidden`): Now (large value, `vs_reference_pct` label), Next (value,
    time, delta arrow), Cheapest (value, time, day), Peak (value, time, day),
    Flexible (reference price, `below_reference_pct` "of slots cheaper").
 3. **Chart**: heading "Prices until {{ window.until }} (p/kWh)" with a legend
-   "solid: below Flexible, hatched: above". If `stats.negative_count > 0`,
-   the heading gains "· {{ n }} negative slots". Below it an inline SVG:
+   "dark bars below Flexible · light bars above". The Peak tile shows the
+   negative slot count. Below the heading an inline SVG:
    - `viewBox="0 0 1000 300"`, width 100%, height fixed per breakpoint via
      class (`md:` shorter, `lg:` taller).
    - Bar width = plot width / `window.slot_count`, small gap between bars.
