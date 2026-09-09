@@ -3,7 +3,7 @@ name: Agile Octopus prices
 description: Agile price ahead and best times
 strategy: polling
 polling_verb: GET
-polling_url: "{{ api_base | default: 'https://trmnl-octopus.WORKERS_SUBDOMAIN.workers.dev' }}/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}{{ dev_query }}"
+polling_url: "{{ api_base | default: 'https://trmnl-octopus.tk.workers.dev' }}/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}{{ dev_query }}"
 refresh_interval: 15
 no_screen_padding: "no"
 dark_mode: "no"

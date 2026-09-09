@@ -10,6 +10,9 @@ every 15 minutes. Not an Octopus Energy product.
 
 ## Worker
 
+Deployed at https://trmnl-octopus.tk.workers.dev (try
+`/trmnl?region=C`).
+
 ```sh
 pnpm install
 pnpm test
