@@ -9,6 +9,13 @@ no_screen_padding: "no"
 dark_mode: "no"
 framework_version: latest
 custom_fields:
+  - keyname: about
+    name: About this plugin
+    field_type: author_bio
+    category: finance,life
+    description: Shows the Octopus Agile electricity price ahead for your region, compared with the Flexible Octopus variable tariff, and the cheapest windows to run a washing machine and a dishwasher. Prices come from the public Octopus Energy API; new next-day prices appear soon after 16:00. Not an Octopus Energy product.
+    github_url: https://github.com/MattieTK
+    learn_more_url: https://trmnl-octopus.tk.workers.dev
   - keyname: region
     name: Electricity region
     field_type: select
