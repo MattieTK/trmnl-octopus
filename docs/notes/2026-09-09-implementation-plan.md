@@ -8,7 +8,7 @@
 
 **Tech Stack:** pnpm, Hono 4, TypeScript 5, Wrangler 4, Vitest 4 with `@cloudflare/vitest-pool-workers`, TRMNL Framework 3.3 Liquid templates, trmnlp (Docker image) for previews.
 
-**Spec:** `docs/superpowers/specs/2026-09-09-trmnl-agile-design.md`
+**Spec:** `docs/notes/2026-09-09-design.md`
 
 ## Global Constraints
 
@@ -1948,7 +1948,7 @@ zip `plugin/src/*` and import it as a private plugin.
 
 ## Design
 
-See `docs/superpowers/specs/2026-09-09-trmnl-agile-design.md`.
+See `docs/notes/2026-09-09-design.md`.
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**

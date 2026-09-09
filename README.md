@@ -51,4 +51,4 @@ zip `plugin/src/*` and import it as a private plugin.
 
 ## Design
 
-See `docs/superpowers/specs/2026-09-09-trmnl-agile-design.md`.
+See `docs/notes/2026-09-09-design.md`.
