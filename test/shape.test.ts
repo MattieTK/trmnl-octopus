@@ -7,13 +7,14 @@ import {
   NoCurrentSlotError,
   round1,
   selectSlots,
+  shape,
   ticksFor,
   tomorrowIndex,
   tomorrowPending,
   vsReferencePct,
   windowUntil,
 } from "../src/shape";
-import { agileRows, EVENING, MORNING, REFERENCE, TODAY_END, TOMORROW_END } from "./helpers";
+import { agileRows, EVENING, MORNING, REFERENCE, TODAY_END, TOMORROW_END, withNegative } from "./helpers";
 
 describe("round1", () => {
   it("rounds to one decimal place", () => {
@@ -144,5 +145,121 @@ describe("windowUntil and tomorrowPending", () => {
     expect(tomorrowPending(new Date("2026-09-08T22:00:00Z"), EVENING)).toBe(true);
     expect(tomorrowPending(new Date("2026-09-09T22:00:00Z"), EVENING)).toBe(false);
     expect(tomorrowPending(new Date("2026-09-09T22:00:00Z"), new Date("2026-09-08T22:30:00Z"))).toBe(false);
+  });
+});
+
+const reference = { price: REFERENCE, label: "Flexible Octopus", short: "Flexible" };
+
+describe("shape – morning", () => {
+  const payload = shape({ region: "C", agile: agileRows(TODAY_END), reference, durations: [2, 3], now: MORNING });
+
+  it("describes region, reference and the current slot", () => {
+    expect(payload.ok).toBe(true);
+    expect(payload.stale).toBe(false);
+    expect(payload.region).toEqual({ code: "C", name: "London" });
+    expect(payload.reference).toEqual({ price: 26.3, label: "Flexible Octopus", short: "Flexible" });
+    expect(payload.now).toEqual({ time: "09:00", end: "09:30", price: 22.3, vs_reference_pct: -15, band: "below" });
+    expect(payload.next).toEqual({ time: "09:30", end: "10:00", price: 21.7, vs_reference_pct: -18, band: "below", delta: -0.6 });
+    expect(payload.slot_label).toBe("09:00");
+  });
+
+  it("covers the rest of today", () => {
+    expect(payload.window).toEqual({ until: "23:00 today", includes_tomorrow: false, tomorrow_pending: false, slot_count: 28 });
+    expect(payload.slots).toHaveLength(28);
+    expect(payload.slots[0]).toMatchObject({ time: "09:00", price: 22.3, band: "below" });
+  });
+
+  it("summarises the window", () => {
+    expect(payload.stats).toEqual({
+      min: { time: "14:30", day: "Today", price: 6.7 },
+      max: { time: "18:30", day: "Today", price: 46 },
+      average: 23.8,
+      below_reference_pct: 54,
+      negative_count: 0,
+    });
+  });
+
+  it("lays out the chart", () => {
+    expect(payload.chart.axis_max).toBe(50);
+    expect(payload.chart.axis_min).toBe(0);
+    expect(payload.chart.reference_y).toBe(47.3);
+    expect(payload.chart.zero_y).toBe(100);
+    expect(payload.chart.ticks[1]).toEqual({ index: 6, label: "12:00" });
+    expect(payload.chart.tomorrow_index).toBeNull();
+    expect(payload.chart.tomorrow_label).toBeNull();
+  });
+
+  it("finds the cheapest windows in the requested order", () => {
+    expect(payload.windows).toEqual([
+      { hours: 2, available: true, day: "Today", start: "13:30", end: "15:30", average: 7.5, vs_reference_pct: -72, start_index: 9, slot_count: 4 },
+      { hours: 3, available: true, day: "Today", start: "13:00", end: "16:00", average: 8.1, vs_reference_pct: -69, start_index: 8, slot_count: 6 },
+    ]);
+  });
+
+  it("stays small", () => {
+    expect(JSON.stringify(payload).length).toBeLessThan(20_000);
+  });
+});
+
+describe("shape – evening with tomorrow", () => {
+  const payload = shape({ region: "C", agile: agileRows(TOMORROW_END), reference, durations: [2, 3], now: EVENING });
+
+  it("extends into tomorrow", () => {
+    expect(payload.window).toEqual({ until: "23:00 tomorrow", includes_tomorrow: true, tomorrow_pending: false, slot_count: 59 });
+    expect(payload.chart.tomorrow_index).toBe(13);
+    expect(payload.chart.tomorrow_label).toBe("Wed");
+    expect(payload.chart.axis_max).toBe(60);
+  });
+
+  it("labels windows that start tomorrow", () => {
+    expect(payload.windows[0]).toMatchObject({ hours: 2, available: true, day: "Tomorrow", start: "03:00", end: "05:00", average: 21.8, start_index: 19 });
+    expect(payload.windows[1]).toMatchObject({ hours: 3, day: "Tomorrow", start: "02:00", end: "05:00", start_index: 17 });
+  });
+
+  it("stays small with the longest window", () => {
+    expect(JSON.stringify(payload).length).toBeLessThan(20_000);
+  });
+});
+
+describe("shape – evening before publication", () => {
+  const payload = shape({ region: "C", agile: agileRows(TODAY_END), reference, durations: [2, 12], now: EVENING });
+
+  it("flags that tomorrow is pending", () => {
+    expect(payload.window).toEqual({ until: "23:00 today", includes_tomorrow: false, tomorrow_pending: true, slot_count: 11 });
+  });
+
+  it("reports a window that no longer fits", () => {
+    expect(payload.windows[0]).toMatchObject({ hours: 2, available: true, start: "21:00", end: "23:00", average: 28.3, vs_reference_pct: 8 });
+    expect(payload.windows[1]).toEqual({ hours: 12, available: false });
+  });
+});
+
+describe("shape – negative prices", () => {
+  const payload = shape({ region: "C", agile: withNegative(agileRows(TODAY_END)), reference, durations: [2], now: MORNING });
+
+  it("counts and bands negative slots and extends the axis", () => {
+    expect(payload.stats.negative_count).toBe(2);
+    expect(payload.stats.min).toEqual({ time: "13:00", day: "Today", price: -1.5 });
+    expect(payload.chart.axis_min).toBe(-5);
+    expect(payload.chart.zero_y).toBe(90.9);
+    expect(payload.slots[8]).toEqual({ time: "13:00", price: -1.5, band: "negative", y: 90.9, h: 2.7 });
+  });
+
+  it("pulls the cheapest window over the negative slots", () => {
+    const window = payload.windows[0];
+    expect(window.available).toBe(true);
+    if (window.available) {
+      expect(window.start_index).toBeLessThanOrEqual(8);
+      expect(window.start_index + window.slot_count).toBeGreaterThan(8);
+    }
+  });
+});
+
+describe("shape – last slot", () => {
+  it("has no next when the current slot is the final one", () => {
+    const rows = agileRows(TODAY_END);
+    const payload = shape({ region: "C", agile: rows, reference, durations: [2], now: new Date("2026-09-08T21:45:00Z") });
+    expect(payload.next).toBeNull();
+    expect(payload.windows[0]).toEqual({ hours: 2, available: false });
   });
 });

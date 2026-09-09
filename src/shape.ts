@@ -1,5 +1,6 @@
-import { londonDate, londonHour, londonMinute, londonTime } from "./time";
-import type { Band, Rate, Tick } from "./types";
+import { REGIONS } from "./regions";
+import { dayLabel, londonDate, londonHour, londonMinute, londonTime, londonWeekday } from "./time";
+import type { Band, CheapestWindow, Extreme, Payload, PricePoint, Rate, Slot, Tick } from "./types";
 
 export class NoCurrentSlotError extends Error {
   constructor() {
@@ -109,4 +110,107 @@ const PUBLICATION_HOUR = 16;
 
 export function tomorrowPending(lastEnd: Date, now: Date): boolean {
   return londonHour(now) >= PUBLICATION_HOUR && endsToday(lastEnd, now);
+}
+
+export type ShapeInput = {
+  region: string;
+  agile: Rate[];
+  reference: { price: number; label: string; short: string };
+  durations: number[];
+  now: Date;
+};
+
+function pricePoint(rate: Rate, reference: number): PricePoint {
+  return {
+    time: londonTime(new Date(rate.valid_from)),
+    end: londonTime(new Date(rate.valid_to)),
+    price: round1(rate.value_inc_vat),
+    vs_reference_pct: vsReferencePct(rate.value_inc_vat, reference),
+    band: bandFor(rate.value_inc_vat, reference),
+  };
+}
+
+function extreme(rates: Rate[], index: number, now: Date): Extreme {
+  const start = new Date(rates[index].valid_from);
+  return { time: londonTime(start), day: dayLabel(start, now), price: round1(rates[index].value_inc_vat) };
+}
+
+function windowsFor(rates: Rate[], prices: number[], durations: number[], reference: number, now: Date): CheapestWindow[] {
+  return durations.map((hours) => {
+    const size = Math.round(hours * 2);
+    const found = cheapestWindow(prices, size);
+    if (!found) return { hours, available: false };
+    const start = new Date(rates[found.start].valid_from);
+    const end = new Date(rates[found.start + size - 1].valid_to);
+    return {
+      hours,
+      available: true,
+      day: dayLabel(start, now),
+      start: londonTime(start),
+      end: londonTime(end),
+      average: round1(found.average),
+      vs_reference_pct: vsReferencePct(found.average, reference),
+      start_index: found.start,
+      slot_count: size,
+    };
+  });
+}
+
+/** Builds the polling payload. Throws NoCurrentSlotError when `agile` does not cover `now`. */
+export function shape(input: ShapeInput): Payload {
+  const { now, durations } = input;
+  const reference = input.reference.price;
+  const rates = selectSlots(input.agile, now);
+  const starts = rates.map((rate) => new Date(rate.valid_from));
+  const prices = rates.map((rate) => rate.value_inc_vat);
+  const axis = chartAxis(prices, reference);
+  const lastEnd = new Date(rates[rates.length - 1].valid_to);
+  const current = pricePoint(rates[0], reference);
+  const nextRate = rates[1];
+  const minIndex = prices.indexOf(Math.min(...prices));
+  const maxIndex = prices.indexOf(Math.max(...prices));
+  const tomorrowAt = tomorrowIndex(starts, now);
+
+  const slots: Slot[] = rates.map((rate, index) => ({
+    time: londonTime(starts[index]),
+    price: round1(rate.value_inc_vat),
+    band: bandFor(rate.value_inc_vat, reference),
+    ...barGeometry(rate.value_inc_vat, axis),
+  }));
+
+  return {
+    ok: true,
+    stale: false,
+    region: { code: input.region, name: REGIONS[input.region] ?? input.region },
+    reference: { price: round1(reference), label: input.reference.label, short: input.reference.short },
+    now: current,
+    next: nextRate
+      ? { ...pricePoint(nextRate, reference), delta: round1(nextRate.value_inc_vat - rates[0].value_inc_vat) }
+      : null,
+    window: {
+      until: windowUntil(lastEnd, now),
+      includes_tomorrow: tomorrowAt !== null,
+      tomorrow_pending: tomorrowPending(lastEnd, now),
+      slot_count: rates.length,
+    },
+    stats: {
+      min: extreme(rates, minIndex, now),
+      max: extreme(rates, maxIndex, now),
+      average: round1(prices.reduce((sum, price) => sum + price, 0) / prices.length),
+      below_reference_pct: Math.round((prices.filter((price) => price < reference).length / prices.length) * 100),
+      negative_count: prices.filter((price) => price <= 0).length,
+    },
+    chart: {
+      axis_max: axis.axis_max,
+      axis_min: axis.axis_min,
+      reference_y: axis.reference_y,
+      zero_y: axis.zero_y,
+      ticks: ticksFor(starts),
+      tomorrow_index: tomorrowAt,
+      tomorrow_label: tomorrowAt === null ? null : londonWeekday(starts[tomorrowAt]),
+    },
+    slots,
+    windows: windowsFor(rates, prices, durations, reference, now),
+    slot_label: current.time,
+  };
 }
