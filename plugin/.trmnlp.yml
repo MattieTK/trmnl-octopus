@@ -1,0 +1,26 @@
+---
+watch:
+  - src
+  - .trmnlp.yml
+
+time_zone: Europe/London
+
+custom_fields:
+  region: C
+  appliance_1: Washing machine
+  appliance_1_hours: "2"
+  appliance_2: Dishwasher
+  appliance_2_hours: "3"
+  # Local-only overrides. Switch dev_query between states:
+  #   "&at=2026-09-08T08:05:00Z"  morning, today only
+  #   "&at=2026-09-08T16:35:00Z"  evening (today and tomorrow once published)
+  #   ""                          live data
+  api_base: http://host.docker.internal:8787
+  dev_query: ""
+
+variables:
+  trmnl:
+    user:
+      first_name: Preview
+    plugin_settings:
+      instance_name: Agile Octopus prices

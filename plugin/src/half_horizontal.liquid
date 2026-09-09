@@ -1,0 +1,43 @@
+{%- assign fields = trmnl.plugin_settings.custom_fields_values -%}
+{%- assign name_1 = fields.appliance_1 | default: "Appliance 1" -%}
+{%- assign name_2 = fields.appliance_2 | default: "Appliance 2" -%}
+{%- assign appliance_names = name_1 | append: "|" | append: name_2 | split: "|" -%}
+<div class="layout layout--col gap--small">
+{%- if ok == false -%}
+  <span class="value value--large">Prices unavailable</span>
+{%- else -%}
+  <div class="grid grid--cols-4 gap--medium">
+    <div class="flex flex--col flex--left">
+      <span class="label label--small">Now · {{ now.time }}</span>
+      <span class="value value--large value--tnums">{{ now.price }}p</span>
+      <span class="label label--small">{{ now.vs_reference_pct | abs }}% {% if now.vs_reference_pct < 0 %}below{% else %}above{% endif %} {{ reference.short }}</span>
+    </div>
+    <div class="flex flex--col flex--left">
+      {%- if next -%}
+      <span class="label label--small">Next · {{ next.time }}</span>
+      <span class="value value--large value--tnums">{{ next.price }}p</span>
+      {%- else -%}
+      <span class="label label--small">Next</span>
+      <span class="value value--large">–</span>
+      {%- endif -%}
+    </div>
+    {%- for w in windows limit: 2 -%}
+    <div class="flex flex--col flex--left">
+      <span class="label label--small">{{ appliance_names[forloop.index0] }} · {{ w.hours }}h</span>
+      {%- if w.available -%}
+      <span class="value value--xsmall value--tnums">{{ w.day }} {{ w.start }}–{{ w.end }}</span>
+      <span class="label label--small">average {{ w.average }}p</span>
+      {%- else -%}
+      <span class="value value--xsmall">Not enough prices</span>
+      {%- endif -%}
+    </div>
+    {%- endfor -%}
+  </div>
+  <span class="label label--small">Cheapest {{ stats.min.price }}p at {{ stats.min.time }} · peak {{ stats.max.price }}p at {{ stats.max.time }} · until {{ window.until }}</span>
+{%- endif -%}
+</div>
+
+<div class="title_bar">
+  <span class="title">Agile Octopus prices</span>
+  <span class="instance">{{ region.name }} · slot {{ slot_label }}</span>
+</div>

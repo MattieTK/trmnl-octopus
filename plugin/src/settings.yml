@@ -1,0 +1,55 @@
+---
+name: Agile Octopus prices
+description: Agile price ahead and best times
+strategy: polling
+polling_verb: GET
+polling_url: "{{ api_base | default: 'https://trmnl-octopus.WORKERS_SUBDOMAIN.workers.dev' }}/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}{{ dev_query }}"
+refresh_interval: 15
+no_screen_padding: "no"
+dark_mode: "no"
+framework_version: latest
+custom_fields:
+  - keyname: region
+    name: Electricity region
+    field_type: select
+    description: The last letter of your Agile tariff code, or look it up by postcode at https://api.octopus.energy/v1/industry/grid-supply-points/?postcode=YOURPOSTCODE
+    default: C
+    options:
+      - "Eastern England (A):A"
+      - "East Midlands (B):B"
+      - "London (C):C"
+      - "Merseyside and North Wales (D):D"
+      - "West Midlands (E):E"
+      - "North East England (F):F"
+      - "North West England (G):G"
+      - "Southern England (H):H"
+      - "South East England (J):J"
+      - "South Wales (K):K"
+      - "South West England (L):L"
+      - "Yorkshire (M):M"
+      - "Southern Scotland (N):N"
+      - "Northern Scotland (P):P"
+  - keyname: appliance_1
+    name: Appliance 1
+    field_type: string
+    default: Washing machine
+    description: Shown on the first best-time card.
+  - keyname: appliance_1_hours
+    name: Appliance 1 run time (hours)
+    field_type: number
+    default: 2
+    min: 0.5
+    max: 12
+    step: 0.5
+  - keyname: appliance_2
+    name: Appliance 2
+    field_type: string
+    default: Dishwasher
+    description: Shown on the second best-time card.
+  - keyname: appliance_2_hours
+    name: Appliance 2 run time (hours)
+    field_type: number
+    default: 3
+    min: 0.5
+    max: 12
+    step: 0.5
