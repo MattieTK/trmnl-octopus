@@ -24,6 +24,8 @@
       <span class="value value--base value--tnums">{{ stats.min.price }}p</span>
     </div>
   </div>
+  <span class="label label--small">Cheapest {{ stats.min.price }}p at {{ stats.min.time }} · peak {{ stats.max.price }}p · until {{ window.until }}</span>
+  {%- if windows.size > 0 -%}
   {%- for w in windows limit: 2 -%}
   <div class="flex flex--col flex--left">
     <span class="label label--small">{{ appliance_names[forloop.index0] }} · {{ w.hours }}h</span>
@@ -34,6 +36,7 @@
     {%- endif -%}
   </div>
   {%- endfor -%}
+  {%- endif -%}
 {%- endif -%}
 </div>
 

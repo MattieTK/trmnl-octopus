@@ -1,39 +1,24 @@
 {%- comment -%}
   Agile Octopus prices – full view.
   Data comes from the Worker payload (see src/types.ts). The chart is inline
-  SVG so nothing runs at screenshot time. Two copies of the chart are emitted
-  with different heights: a shorter one for medium screens (the original
-  TRMNL) and a taller one for large screens (TRMNL X); the framework's
-  visibility prefixes show one of them.
+  SVG so nothing runs at screenshot time. Styling uses framework classes and
+  SVG presentation attributes only; there is no custom CSS.
+
+  Two copies of the chart are emitted with different heights: a shorter one
+  for medium screens (the original TRMNL, 1-bit) and a taller one for large
+  screens (TRMNL X, 4-bit); the framework's visibility prefixes show one of
+  them. The medium copy fills "above reference" bars with a 45-degree hatch
+  pattern and window shading with sparse dots, because a 1-bit panel cannot
+  show grey and hatch reads more clearly than dithered grey at bar width. The
+  large copy uses flat greys, which the X can display directly. The SVGs get
+  fixed framework heights (h--36 / h--96) and flex-none because the layout is
+  a fixed-height flex column that would otherwise squeeze the chart.
 {%- endcomment -%}
 {%- assign fields = trmnl.plugin_settings.custom_fields_values -%}
 {%- assign name_1 = fields.appliance_1 | default: "Appliance 1" -%}
 {%- assign name_2 = fields.appliance_2 | default: "Appliance 2" -%}
 {%- assign appliance_names = name_1 | append: "|" | append: name_2 | split: "|" -%}
-
-<style>
-  /* The layout is a fixed-height flex column; without flex: none the SVG is
-     the item that gets squeezed. Keep the ratios in step with plot_h below:
-     view height = 46 + plot_h + 62. */
-  .agile-chart-wrap { flex: none; }
-  .trmnl .screen .agile-chart { width: 100%; height: auto; flex: none; vertical-align: top; }
-  .agile-chart--md { aspect-ratio: 1000 / 192; }
-  .agile-chart--lg { aspect-ratio: 1000 / 368; }
-  .agile-chart .bar--below,
-  .agile-chart .bar--negative { fill: #000; }
-  .agile-chart .bar--above { fill: url(#agile-hatch); }
-  .agile-chart .window-shade { fill: url(#agile-dots); }
-  .screen--4bit .agile-chart .bar--above { fill: #8c8c8c; }
-  .screen--4bit .agile-chart .window-shade { fill: #dcdcdc; }
-  .agile-chart .axis { stroke: #000; stroke-width: 2; }
-  .agile-chart .ref-line { stroke: #000; stroke-width: 2.5; stroke-dasharray: 10 7; }
-  .agile-chart .ref-label-bg { fill: #fff; }
-  .agile-chart .day-line { stroke: #000; stroke-width: 2; stroke-dasharray: 2 5; }
-  .agile-chart .chart-text { font-family: "Inter Variable", Inter, sans-serif; font-size: 20px; fill: #000; }
-  .agile-chart .chart-text--bold { font-weight: 700; }
-  .agile-chart--lg .chart-text { font-size: 16px; }
-  .agile-chart .now-marker { fill: #000; }
-</style>
+{%- assign chart_font = "Inter Variable, Inter, sans-serif" -%}
 
 <div class="layout layout--col gap--xsmall">
 {%- if ok != true -%}
@@ -94,7 +79,7 @@
   </div>
 
   {%- comment -%} Chart {%- endcomment -%}
-  <div class="flex flex--col flex--stretch gap--xsmall w--full agile-chart-wrap">
+  <div class="flex flex--col flex--stretch gap--xsmall w--full flex-none">
     <div class="flex flex--row flex--between">
       <span class="label label--small">Prices until {{ window.until }} (p/kWh){% if window.tomorrow_pending %} · tomorrow's prices due about 16:00{% endif %}</span>
       <span class="label label--small">dark bars below {{ reference.short }} · light bars above</span>
@@ -115,11 +100,17 @@
 
     {%- for variant in variants -%}
     {%- if variant == "md" -%}
-      {%- assign svg_class = "agile-chart--md lg:hidden" -%}
+      {%- assign svg_class = "block lg:hidden w--full h--36 flex-none" -%}
       {%- assign plot_h = 84 -%}
+      {%- assign text_size = 20 -%}
+      {%- assign fill_above = "url(#agile-hatch)" -%}
+      {%- assign fill_shade = "url(#agile-dots)" -%}
     {%- else -%}
-      {%- assign svg_class = "agile-chart--lg hidden lg:block" -%}
+      {%- assign svg_class = "hidden lg:block w--full h--96 flex-none" -%}
       {%- assign plot_h = 260 -%}
+      {%- assign text_size = 16 -%}
+      {%- assign fill_above = "#8c8c8c" -%}
+      {%- assign fill_shade = "#dcdcdc" -%}
     {%- endif -%}
     {%- assign plot_y = 46 -%}
     {%- assign plot_bottom = plot_y | plus: plot_h -%}
@@ -128,7 +119,8 @@
     {%- assign zero_y = chart.zero_y | times: plot_h | divided_by: 100.0 | plus: plot_y -%}
     {%- assign mid_y = chart.axis_max | minus: mid_value | times: plot_h | divided_by: axis_span | plus: plot_y -%}
 
-    <svg class="agile-chart {{ svg_class }}" width="100%" viewBox="0 0 1000 {{ view_h }}" role="img" aria-label="Agile prices ahead">
+    <svg class="{{ svg_class }}" viewBox="0 0 1000 {{ view_h }}" preserveAspectRatio="xMidYMid meet" font-family="{{ chart_font }}" font-size="{{ text_size }}" fill="#000" role="img" aria-label="Agile prices ahead">
+      {%- if variant == "md" -%}
       <defs>
         <pattern id="agile-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="2.5" height="7" fill="#000"></rect>
@@ -137,15 +129,16 @@
           <circle cx="3.5" cy="3.5" r="1.2" fill="#000"></circle>
         </pattern>
       </defs>
+      {%- endif -%}
 
       {%- for w in windows -%}
         {%- if w.available -%}
           {%- assign shade_x = w.start_index | times: bar_w | plus: plot_x -%}
           {%- assign shade_w = w.slot_count | times: bar_w -%}
           {%- assign label_y = forloop.index0 | times: 20 | plus: 18 -%}
-          <rect class="window-shade" x="{{ shade_x }}" y="{{ plot_y }}" width="{{ shade_w }}" height="{{ plot_h }}"></rect>
-          <line class="day-line" x1="{{ shade_x }}" y1="{{ label_y | plus: 4 }}" x2="{{ shade_x }}" y2="{{ plot_y }}"></line>
-          <text class="chart-text chart-text--bold" x="{{ shade_x | plus: 6 }}" y="{{ label_y }}">{{ appliance_names[forloop.index0] }} · {{ w.start }}–{{ w.end }}</text>
+          <rect x="{{ shade_x }}" y="{{ plot_y }}" width="{{ shade_w }}" height="{{ plot_h }}" fill="{{ fill_shade }}"></rect>
+          <line x1="{{ shade_x }}" y1="{{ label_y | plus: 4 }}" x2="{{ shade_x }}" y2="{{ plot_y }}" stroke="#000" stroke-width="2" stroke-dasharray="2 5"></line>
+          <text x="{{ shade_x | plus: 6 }}" y="{{ label_y }}" font-weight="700">{{ appliance_names[forloop.index0] }} · {{ w.start }}–{{ w.end }}</text>
         {%- endif -%}
       {%- endfor -%}
 
@@ -153,42 +146,43 @@
         {%- assign x = forloop.index0 | times: bar_w | plus: plot_x | plus: bar_gap -%}
         {%- assign y = slot.y | times: plot_h | divided_by: 100.0 | plus: plot_y -%}
         {%- assign h = slot.h | times: plot_h | divided_by: 100.0 -%}
-        <rect class="bar bar--{{ slot.band }}" x="{{ x }}" y="{{ y }}" width="{{ bar_draw_w }}" height="{{ h }}"></rect>
+        <rect x="{{ x }}" y="{{ y }}" width="{{ bar_draw_w }}" height="{{ h }}" fill="{% if slot.band == 'above' %}{{ fill_above }}{% else %}#000{% endif %}"></rect>
       {%- endfor -%}
 
-      <line class="axis" x1="{{ plot_x }}" y1="{{ zero_y }}" x2="{{ plot_right }}" y2="{{ zero_y }}"></line>
-      <line class="axis" x1="{{ plot_x }}" y1="{{ plot_y }}" x2="{{ plot_x }}" y2="{{ plot_bottom }}"></line>
+      <line x1="{{ plot_x }}" y1="{{ zero_y }}" x2="{{ plot_right }}" y2="{{ zero_y }}" stroke="#000" stroke-width="2"></line>
+      <line x1="{{ plot_x }}" y1="{{ plot_y }}" x2="{{ plot_x }}" y2="{{ plot_bottom }}" stroke="#000" stroke-width="2"></line>
 
-      <line class="ref-line" x1="{{ plot_x }}" y1="{{ ref_y }}" x2="{{ plot_right }}" y2="{{ ref_y }}"></line>
-      <rect class="ref-label-bg" x="{{ plot_right | minus: ref_label_w }}" y="{{ ref_y | minus: 26 }}" width="{{ ref_label_w }}" height="24"></rect>
-      <text class="chart-text chart-text--bold" x="{{ plot_right | minus: 6 }}" y="{{ ref_y | minus: 7 }}" text-anchor="end">{{ ref_label }}</text>
+      <line x1="{{ plot_x }}" y1="{{ ref_y }}" x2="{{ plot_right }}" y2="{{ ref_y }}" stroke="#000" stroke-width="2.5" stroke-dasharray="10 7"></line>
+      <rect x="{{ plot_right | minus: ref_label_w }}" y="{{ ref_y | minus: 26 }}" width="{{ ref_label_w }}" height="24" fill="#fff"></rect>
+      <text x="{{ plot_right | minus: 6 }}" y="{{ ref_y | minus: 7 }}" text-anchor="end" font-weight="700">{{ ref_label }}</text>
 
-      <text class="chart-text" x="{{ plot_x | minus: 8 }}" y="{{ plot_y | plus: 7 }}" text-anchor="end">{{ chart.axis_max }}</text>
-      <text class="chart-text" x="{{ plot_x | minus: 8 }}" y="{{ mid_y | plus: 7 }}" text-anchor="end">{{ mid_value }}</text>
-      <text class="chart-text" x="{{ plot_x | minus: 8 }}" y="{{ zero_y | plus: 7 }}" text-anchor="end">0</text>
+      <text x="{{ plot_x | minus: 8 }}" y="{{ plot_y | plus: 7 }}" text-anchor="end">{{ chart.axis_max }}</text>
+      <text x="{{ plot_x | minus: 8 }}" y="{{ mid_y | plus: 7 }}" text-anchor="end">{{ mid_value }}</text>
+      <text x="{{ plot_x | minus: 8 }}" y="{{ zero_y | plus: 7 }}" text-anchor="end">0</text>
       {%- if chart.axis_min < 0 -%}
-      <text class="chart-text" x="{{ plot_x | minus: 8 }}" y="{{ plot_bottom | plus: 7 }}" text-anchor="end">{{ chart.axis_min }}</text>
+      <text x="{{ plot_x | minus: 8 }}" y="{{ plot_bottom | plus: 7 }}" text-anchor="end">{{ chart.axis_min }}</text>
       {%- endif -%}
 
       {%- if chart.tomorrow_index -%}
         {%- assign day_x = chart.tomorrow_index | times: bar_w | plus: plot_x -%}
-        <line class="day-line" x1="{{ day_x }}" y1="{{ plot_y }}" x2="{{ day_x }}" y2="{{ plot_bottom | plus: 8 }}"></line>
-        <text class="chart-text chart-text--bold" x="{{ day_x | plus: 6 }}" y="{{ plot_y | plus: 20 }}">{{ chart.tomorrow_label }}</text>
+        <line x1="{{ day_x }}" y1="{{ plot_y }}" x2="{{ day_x }}" y2="{{ plot_bottom | plus: 8 }}" stroke="#000" stroke-width="2" stroke-dasharray="2 5"></line>
+        <text x="{{ day_x | plus: 6 }}" y="{{ plot_y | plus: 20 }}" font-weight="700">{{ chart.tomorrow_label }}</text>
       {%- endif -%}
 
       {%- for tick in chart.ticks -%}
         {%- assign tick_x = tick.index | times: bar_w | plus: plot_x | plus: bar_gap -%}
-        <line class="axis" x1="{{ tick_x }}" y1="{{ plot_bottom }}" x2="{{ tick_x }}" y2="{{ plot_bottom | plus: 8 }}"></line>
-        <text class="chart-text" x="{{ tick_x }}" y="{{ plot_bottom | plus: 30 }}" text-anchor="{% if tick.index == 0 %}start{% else %}middle{% endif %}">{{ tick.label }}</text>
+        <line x1="{{ tick_x }}" y1="{{ plot_bottom }}" x2="{{ tick_x }}" y2="{{ plot_bottom | plus: 8 }}" stroke="#000" stroke-width="2"></line>
+        <text x="{{ tick_x }}" y="{{ plot_bottom | plus: 30 }}" text-anchor="{% if tick.index == 0 %}start{% else %}middle{% endif %}">{{ tick.label }}</text>
       {%- endfor -%}
 
-      <polygon class="now-marker" points="{{ now_x | minus: 7 }},{{ plot_bottom | plus: 54 }} {{ now_x | plus: 7 }},{{ plot_bottom | plus: 54 }} {{ now_x }},{{ plot_bottom | plus: 42 }}"></polygon>
-      <text class="chart-text chart-text--bold" x="{{ now_x | plus: 12 }}" y="{{ plot_bottom | plus: 54 }}">Now</text>
+      <polygon points="{{ now_x | minus: 7 }},{{ plot_bottom | plus: 54 }} {{ now_x | plus: 7 }},{{ plot_bottom | plus: 54 }} {{ now_x }},{{ plot_bottom | plus: 42 }}"></polygon>
+      <text x="{{ now_x | plus: 12 }}" y="{{ plot_bottom | plus: 54 }}" font-weight="700">Now</text>
     </svg>
     {%- endfor -%}
   </div>
 
   {%- comment -%} Best times {%- endcomment -%}
+  {%- if windows.size > 0 -%}
   <div class="grid grid--cols-2 gap--medium w--full">
     {%- for w in windows -%}
     <div class="flex flex--col flex--left gap--xsmall p--2 rounded--medium bg--gray-75">
@@ -203,6 +197,9 @@
     </div>
     {%- endfor -%}
   </div>
+  {%- else -%}
+  <span class="label label--small">Set appliance run times in the plugin settings to see the best times to run them.</span>
+  {%- endif -%}
 
   <span class="label label--small">Data: Octopus Energy public API · Not an Octopus product{% if stale %} · prices may be out of date{% endif %}</span>
 {%- endif -%}

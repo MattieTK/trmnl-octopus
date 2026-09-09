@@ -19,23 +19,23 @@ custom_fields:
   - keyname: region
     name: Electricity region
     field_type: select
-    description: The last letter of your Agile tariff code, or look it up by postcode at https://api.octopus.energy/v1/industry/grid-supply-points/?postcode=YOURPOSTCODE
+    description: The last letter of your Agile tariff code (E-1R-AGILE-24-10-01-C is region C). Not sure? <a href="https://api.octopus.energy/v1/industry/grid-supply-points/?postcode=SW1A1AA" target="_blank">Look it up by postcode</a> and replace SW1A1AA with yours.
     default: C
     options:
-      - "Eastern England (A):A"
-      - "East Midlands (B):B"
-      - "London (C):C"
-      - "Merseyside and North Wales (D):D"
-      - "West Midlands (E):E"
-      - "North East England (F):F"
-      - "North West England (G):G"
-      - "Southern England (H):H"
-      - "South East England (J):J"
-      - "South Wales (K):K"
-      - "South West England (L):L"
-      - "Yorkshire (M):M"
-      - "Southern Scotland (N):N"
-      - "Northern Scotland (P):P"
+      - Eastern England: A
+      - East Midlands: B
+      - London: C
+      - Merseyside and North Wales: D
+      - West Midlands: E
+      - North East England: F
+      - North West England: G
+      - Southern England: H
+      - South East England: J
+      - South Wales: K
+      - South West England: L
+      - Yorkshire: M
+      - Southern Scotland: N
+      - Northern Scotland: P
   - keyname: appliance_1
     name: Appliance 1
     field_type: string
