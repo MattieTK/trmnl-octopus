@@ -2,43 +2,51 @@
 {%- assign name_1 = fields.appliance_1 | default: "Appliance 1" -%}
 {%- assign name_2 = fields.appliance_2 | default: "Appliance 2" -%}
 {%- assign appliance_names = name_1 | append: "|" | append: name_2 | split: "|" -%}
+{%- comment -%}
+  Half horizontal. The OG shows the tiles and a summary line; TRMNL X has
+  room for the chart as well, and wraps the tiles to two columns in portrait.
+{%- endcomment -%}
 <div class="layout layout--col gap--small">
 {%- if ok != true -%}
   <div class="flex flex--col flex--center gap--small w--full">
-    <span class="title">{% if setup %}Set up Agile Octopus prices{% else %}Prices unavailable{% endif %}</span>
-    <span class="label label--small">{% if setup %}Choose your electricity region in the plugin settings on trmnl.com.{% else %}{{ error | default: "No data fetched yet" }}{% endif %}</span>
+    <span class="title lg:title--large">{% if setup %}Set up Agile Octopus prices{% else %}Prices unavailable{% endif %}</span>
+    <span class="label label--small lg:label--base">{% if setup %}Choose your electricity region in the plugin settings on trmnl.com.{% else %}{{ error | default: "No data fetched yet" }}{% endif %}</span>
   </div>
 {%- else -%}
-  <div class="grid grid--cols-4 gap--medium">
+  <div class="grid grid--cols-4 lg:portrait:grid--cols-2 gap--medium w--full">
     <div class="flex flex--col flex--left">
-      <span class="label label--small">Now · {{ now.time }}</span>
+      <span class="label label--small lg:label--base">Now · {{ now.time }}</span>
       <span class="value value--large value--tnums">{{ now.price }}p</span>
-      <span class="label label--small">{{ now.vs_reference_pct | abs }}% {% if now.vs_reference_pct < 0 %}below{% else %}above{% endif %} {{ reference.short }}</span>
+      <span class="label label--small lg:label--base">{{ now.vs_reference_pct | abs }}% {% if now.vs_reference_pct < 0 %}below{% else %}above{% endif %} {{ reference.short }}</span>
     </div>
     <div class="flex flex--col flex--left">
       {%- if next -%}
-      <span class="label label--small">Next · {{ next.time }}</span>
+      <span class="label label--small lg:label--base">Next · {{ next.time }}</span>
       <span class="value value--large value--tnums">{{ next.price }}p</span>
+      <span class="label label--small lg:label--base">{% if next.delta > 0 %}up {{ next.delta }}p{% elsif next.delta < 0 %}down {{ next.delta | abs }}p{% else %}no change{% endif %}</span>
       {%- else -%}
-      <span class="label label--small">Next</span>
+      <span class="label label--small lg:label--base">Next</span>
       <span class="value value--large">–</span>
+      <span class="label label--small lg:label--base">awaiting prices</span>
       {%- endif -%}
     </div>
     {%- if windows.size > 0 -%}
     {%- for w in windows limit: 2 -%}
     <div class="flex flex--col flex--left">
-      <span class="label label--small">{{ appliance_names[forloop.index0] }} · {{ w.hours }}h</span>
+      <span class="label label--small lg:label--base">{{ appliance_names[forloop.index0] }} · {{ w.hours }}h</span>
       {%- if w.available -%}
-      <span class="value value--xsmall value--tnums">{{ w.day }} {{ w.start }}–{{ w.end }}</span>
-      <span class="label label--small">average {{ w.average }}p</span>
+      <span class="value value--small value--tnums">{{ w.start }}–{{ w.end }}</span>
+      <span class="label label--small lg:label--base">{{ w.day }} · average {{ w.average }}p</span>
       {%- else -%}
-      <span class="value value--xsmall">Not enough prices</span>
+      <span class="value value--xsmall lg:value--small">Not enough prices</span>
       {%- endif -%}
     </div>
     {%- endfor -%}
     {%- endif -%}
   </div>
-  <span class="label label--small">Cheapest {{ stats.min.price }}p at {{ stats.min.time }} · peak {{ stats.max.price }}p at {{ stats.max.time }} · until {{ window.until }}</span>
+  {%- render "agile_chart", slots: slots, windows: windows, chart: chart, reference: reference, slot_count: window.slot_count, names: appliance_names, cls: "hidden lg:block lg:portrait:hidden w--full h--36 flex-none", plot_h: 110, ts: 18, pid: "agile-hh-x", hatch: false, labels: false, now: false -%}
+  {%- render "agile_chart", slots: slots, windows: windows, chart: chart, reference: reference, slot_count: window.slot_count, names: appliance_names, cls: "hidden lg:portrait:block w--full h--40 flex-none", plot_h: 160, ts: 24, pid: "agile-hh-xp", hatch: false, labels: false, now: false -%}
+  <span class="label label--small lg:label--base">Cheapest {{ stats.min.price }}p at {{ stats.min.time }} · peak {{ stats.max.price }}p at {{ stats.max.time }} · until {{ window.until }}</span>
 {%- endif -%}
 </div>
 

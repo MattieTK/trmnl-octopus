@@ -1,0 +1,150 @@
+{%- comment -%}
+  Shared markup: the price chart as an inline SVG template, rendered by every
+  view with {% render "agile_chart", ... %}. Nothing runs at screenshot time.
+
+  The viewBox is always 1000 units wide; `ts` is the text size in those units
+  and every offset around the plot scales with it, so a view can draw a
+  compact chart for a narrow slot by raising `ts`. Pass:
+
+    slots, windows, chart, reference, slot_count   from the payload
+    names        appliance names, indexed like `windows`
+    cls          classes for the <svg> (visibility and height)
+    plot_h       plot height in viewBox units
+    ts           text size in viewBox units
+    pid          prefix for pattern ids, unique per SVG on the page
+    hatch        true on 1-bit screens: hatch "above reference" bars and dot
+                 the window shading, since a 1-bit panel cannot show grey
+    labels       true to name the appliance windows above the plot
+    now          true to draw the "Now" marker under the first bar
+
+  The closing endtemplate tag must not use whitespace control: TRMNL's
+  parser looks for it literally and would swallow the rest of the file.
+{%- endcomment -%}
+{% template agile_chart %}
+{%- assign plot_x = ts | times: 2.3 -%}
+{%- assign plot_right = 990 -%}
+{%- assign plot_w = plot_right | minus: plot_x -%}
+{%- assign bar_w = plot_w | times: 1.0 | divided_by: slot_count -%}
+{%- assign bar_gap = bar_w | times: 0.12 -%}
+{%- assign bar_draw_w = bar_w | minus: bar_gap -%}
+{%- assign axis_span = chart.axis_max | minus: chart.axis_min -%}
+{%- assign mid_value = chart.axis_max | divided_by: 2 -%}
+{%- assign ref_label = reference.short | append: " " | append: reference.price | append: "p" -%}
+{%- assign now_x = bar_draw_w | divided_by: 2.0 | plus: plot_x | plus: bar_gap -%}
+{%- if labels -%}
+  {%- assign plot_y = ts | times: 2.3 -%}
+{%- else -%}
+  {%- assign plot_y = ts | times: 0.5 -%}
+{%- endif -%}
+{%- assign plot_bottom = plot_y | plus: plot_h -%}
+{%- if now -%}
+  {%- assign view_h = ts | times: 3.1 | plus: plot_bottom -%}
+{%- else -%}
+  {%- assign view_h = ts | times: 1.8 | plus: plot_bottom -%}
+{%- endif -%}
+{%- assign ref_y = chart.reference_y | times: plot_h | divided_by: 100.0 | plus: plot_y -%}
+{%- assign zero_y = chart.zero_y | times: plot_h | divided_by: 100.0 | plus: plot_y -%}
+{%- assign mid_y = chart.axis_max | minus: mid_value | times: plot_h | divided_by: axis_span | plus: plot_y -%}
+{%- assign text_dy = ts | times: 0.35 -%}
+{%- assign halo = ts | times: 0.25 -%}
+{%- if hatch -%}
+  {%- assign fill_above = "url(#" | append: pid | append: "-hatch)" -%}
+  {%- assign fill_shade = "url(#" | append: pid | append: "-dots)" -%}
+{%- else -%}
+  {%- assign fill_above = "#8c8c8c" -%}
+  {%- assign fill_shade = "#dcdcdc" -%}
+{%- endif -%}
+<svg class="{{ cls }}" viewBox="0 0 1000 {{ view_h }}" preserveAspectRatio="xMidYMid meet" font-family="Inter Variable, Inter, sans-serif" font-size="{{ ts }}" fill="#000" role="img" aria-label="Agile prices ahead">
+  {%- if hatch -%}
+  <defs>
+    <pattern id="{{ pid }}-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="2.5" height="7" fill="#000"></rect>
+    </pattern>
+    <pattern id="{{ pid }}-dots" width="7" height="7" patternUnits="userSpaceOnUse">
+      <circle cx="3.5" cy="3.5" r="1.2" fill="#000"></circle>
+    </pattern>
+  </defs>
+  {%- endif -%}
+
+  {%- for w in windows -%}
+    {%- if w.available -%}
+      {%- assign shade_x = w.start_index | times: bar_w | plus: plot_x -%}
+      {%- assign shade_w = w.slot_count | times: bar_w -%}
+      <rect x="{{ shade_x }}" y="{{ plot_y }}" width="{{ shade_w }}" height="{{ plot_h }}" fill="{{ fill_shade }}"></rect>
+      {%- if labels -%}
+      {%- assign label_y = forloop.index0 | plus: 0.9 | times: ts -%}
+      {%- assign label = names[forloop.index0] | append: " · " | append: w.start | append: "–" | append: w.end -%}
+      {%- assign label_right = label | size | times: 0.6 | times: ts | plus: shade_x -%}
+      {%- comment -%} Late windows hang their label leftwards from the window's end. {%- endcomment -%}
+      {%- if label_right > plot_right -%}
+        {%- assign label_x = shade_x | plus: shade_w -%}
+        {%- assign label_anchor = "end" -%}
+        {%- assign text_x = label_x | minus: 6 -%}
+      {%- else -%}
+        {%- assign label_x = shade_x -%}
+        {%- assign label_anchor = "start" -%}
+        {%- assign text_x = label_x | plus: 6 -%}
+      {%- endif -%}
+      <line x1="{{ label_x }}" y1="{{ label_y | plus: 4 }}" x2="{{ label_x }}" y2="{{ plot_y }}" stroke="#000" stroke-width="2" stroke-dasharray="2 5"></line>
+      <text x="{{ text_x }}" y="{{ label_y }}" text-anchor="{{ label_anchor }}" font-weight="700">{{ label }}</text>
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {%- for slot in slots -%}
+    {%- assign x = forloop.index0 | times: bar_w | plus: plot_x | plus: bar_gap -%}
+    {%- assign y = slot.y | times: plot_h | divided_by: 100.0 | plus: plot_y -%}
+    {%- assign h = slot.h | times: plot_h | divided_by: 100.0 -%}
+    <rect x="{{ x }}" y="{{ y }}" width="{{ bar_draw_w }}" height="{{ h }}" fill="{% if slot.band == 'above' %}{{ fill_above }}{% else %}#000{% endif %}"></rect>
+  {%- endfor -%}
+
+  <line x1="{{ plot_x }}" y1="{{ zero_y }}" x2="{{ plot_right }}" y2="{{ zero_y }}" stroke="#000" stroke-width="2"></line>
+  <line x1="{{ plot_x }}" y1="{{ plot_y }}" x2="{{ plot_x }}" y2="{{ plot_bottom }}" stroke="#000" stroke-width="2"></line>
+
+  <line x1="{{ plot_x }}" y1="{{ ref_y }}" x2="{{ plot_right }}" y2="{{ ref_y }}" stroke="#000" stroke-width="2.5" stroke-dasharray="10 7"></line>
+  <text x="{{ plot_right | minus: 6 }}" y="{{ ref_y | minus: text_dy }}" text-anchor="end" font-weight="700" stroke="#fff" stroke-width="{{ halo }}" stroke-linejoin="round" paint-order="stroke">{{ ref_label }}</text>
+
+  <text x="{{ plot_x | minus: 8 }}" y="{{ plot_y | plus: text_dy }}" text-anchor="end">{{ chart.axis_max }}</text>
+  <text x="{{ plot_x | minus: 8 }}" y="{{ mid_y | plus: text_dy }}" text-anchor="end">{{ mid_value }}</text>
+  <text x="{{ plot_x | minus: 8 }}" y="{{ zero_y | plus: text_dy }}" text-anchor="end">0</text>
+  {%- if chart.axis_min < 0 -%}
+  <text x="{{ plot_x | minus: 8 }}" y="{{ plot_bottom | plus: text_dy }}" text-anchor="end">{{ chart.axis_min }}</text>
+  {%- endif -%}
+
+  {%- if chart.tomorrow_index -%}
+    {%- assign day_x = chart.tomorrow_index | times: bar_w | plus: plot_x -%}
+    <line x1="{{ day_x }}" y1="{{ plot_y }}" x2="{{ day_x }}" y2="{{ plot_bottom | plus: 8 }}" stroke="#000" stroke-width="2" stroke-dasharray="2 5"></line>
+    <text x="{{ day_x | plus: 6 }}" y="{{ plot_y | plus: ts }}" font-weight="700">{{ chart.tomorrow_label }}</text>
+  {%- endif -%}
+
+  {%- comment -%}
+    Tick marks always draw; a tick's label is skipped when it would run into
+    the previous one, which happens on narrow charts with large text.
+  {%- endcomment -%}
+  {%- assign tick_text_y = ts | times: 1.5 | plus: plot_bottom -%}
+  {%- assign tick_half_w = ts | times: 1.4 -%}
+  {%- assign tick_gap = ts | times: 0.4 -%}
+  {%- assign last_label_right = -1000 -%}
+  {%- for tick in chart.ticks -%}
+    {%- assign tick_x = tick.index | times: bar_w | plus: plot_x | plus: bar_gap -%}
+    <line x1="{{ tick_x }}" y1="{{ plot_bottom }}" x2="{{ tick_x }}" y2="{{ plot_bottom | plus: 8 }}" stroke="#000" stroke-width="2"></line>
+    {%- if tick.index == 0 -%}
+      {%- assign label_left = tick_x -%}
+    {%- else -%}
+      {%- assign label_left = tick_x | minus: tick_half_w -%}
+    {%- endif -%}
+    {%- if label_left > last_label_right -%}
+      <text x="{{ tick_x }}" y="{{ tick_text_y }}" text-anchor="{% if tick.index == 0 %}start{% else %}middle{% endif %}">{{ tick.label }}</text>
+      {%- assign last_label_right = tick_half_w | times: 2 | plus: label_left | plus: tick_gap -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {%- if now -%}
+    {%- assign tri_top = ts | times: 2.1 | plus: plot_bottom -%}
+    {%- assign tri_base = ts | times: 2.7 | plus: plot_bottom -%}
+    {%- assign tri_half = ts | times: 0.35 -%}
+    <polygon points="{{ now_x | minus: tri_half }},{{ tri_base }} {{ now_x | plus: tri_half }},{{ tri_base }} {{ now_x }},{{ tri_top }}"></polygon>
+    <text x="{{ ts | times: 0.6 | plus: now_x }}" y="{{ tri_base }}" font-weight="700">Now</text>
+  {%- endif -%}
+</svg>
+{% endtemplate %}
