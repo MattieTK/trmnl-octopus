@@ -14,7 +14,7 @@ export const homepage = `<!doctype html>
   <h1>TRMNL Octopus Agile</h1>
   <p>A TRMNL e-ink plugin showing the Octopus Agile electricity price ahead: the rest of today in the morning, and today plus tomorrow once next-day prices are published around 16:00. It draws a price chart against the Flexible Octopus variable tariff and picks the cheapest windows for a washing machine and a dishwasher.</p>
   <h2>Install</h2>
-  <p>Search for "Agile Octopus prices" in the TRMNL recipes directory, choose your electricity region and, optionally, your appliance run times.</p>
+  <p>Search for "Octopus Agile" in the TRMNL recipes directory, choose your electricity region and, optionally, your appliance run times.</p>
   <h2>API</h2>
   <p>The plugin polls <code>/trmnl?region=C&amp;durations=2,3</code>. <code>region</code> is your DNO letter (A to P, no I or O). <code>durations</code> lists appliance run lengths in hours. Responses are cached until the next half hour.</p>
   <p>Source code is on <a href="https://github.com/MattieTK/trmnl-octopus">GitHub</a>.</p>
