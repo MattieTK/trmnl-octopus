@@ -1,6 +1,6 @@
 ---
-name: Agile Octopus prices
-description: Day ahead pricing for UK Octopus Agile tariff
+name: Octopus Agile Energy Rates
+description: Day ahead UK Octopus Agile prices
 strategy: polling
 polling_verb: GET
 polling_url: "{{ api_base | default: 'https://trmnl-octopus.tk.workers.dev' }}/trmnl?region={{ region }}&durations={{ appliance_1_hours }},{{ appliance_2_hours }}{{ dev_query }}"
